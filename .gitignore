@@ -37,3 +37,9 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# Datasets
+*.csv
+
+# os x desktop files
+.DS_Store
