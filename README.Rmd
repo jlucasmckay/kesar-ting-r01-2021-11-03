@@ -1,0 +1,151 @@
+---
+title: "R01 Sample Size Justification"
+author: "J. Lucas McKay"
+date: "11/2/2021"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, error = F, message = F)
+```
+
+## Data sources
+
+This document is based on data from the file `GaitSignatureQuality.csv` provided by Michael Rosenberg, Ph.D.
+This `.csv` file is not tracked by github.
+
+## Sample size justification
+
+We powered the study based on preliminary gait quality data of N = 8 stroke survivors and N = 5 able-bodied comparison subjects.
+Across groups, based on 1000 Welch Independent Samples t-tests simulated based on preliminary data with a differential effect size of Cohen's d = 1.3,
+a sample size of N = 80 stroke survivors and N = 20 able-bodied individuals will have >99% power to resolve a difference
+between stroke and able-bodied.
+Within the stroke group, based on contrasts between gait quality measures obtained at enforced speed = 5 and self-selected speed of Cohen's d = 0.8, a paired-sample t-test will have >95% power to resolve an improvement in gait quality accompanying increased gait speed.
+Further, based on observed contrasts between enforced speed = 5 and enforced speed = 2 of Cohen's d = 0.5, a paired-sample t-test will have >85% power to resolve differential improvements in gait quality between enforced speeds 5 and 2.
+
+
+```{r}
+library(tidyverse)
+d = read_csv("GaitSignatureQuality.csv") |> 
+  mutate(Group = case_when(
+    grepl("^AB",subjID) ~ "AB",
+    T ~ "Stroke"
+  )) |> 
+  rename(Dist = Mean);
+
+pooled_sd = sd(d$Dist)
+# 43
+
+d_mn = d |> group_by(Group,subjID) |> summarize(Dist = mean(Dist))
+d_mn_2 = d_mn |> ungroup() |> group_by(Group) |> summarize(Dist_sd = sd(Dist), Dist_mn = mean(Dist))
+
+# calculate cohen's d for stroke vs. able-bodied
+cohens_d_1 = diff(d_mn_2$Dist_mn)/pooled_sd
+# 1.3
+
+# calculate power at 20/80
+sim_ab_st = function(n_ab=20,n_st=80){
+  ab = rnorm(n_ab,d_mn_2$Dist_mn[1],d_mn_2$Dist_sd[1])
+  st = rnorm(n_st,d_mn_2$Dist_mn[2],d_mn_2$Dist_sd[2])
+  m = t.test(ab,st)
+  m$p.value
+}
+
+p_vals = replicate(1000,sim_ab_st())
+power_1 = sum(p_vals<0.05)/length(p_vals)
+# [1] 1
+# Over 99% power for contrast 1
+
+```
+```{r}
+# calculate improvement in each speed vs. speed 1
+st = d |>
+  filter(Group=="Stroke") |>
+  group_by(subjID) |>
+  mutate(DeltaDist = Dist - Dist[row_number() == 1]) |>
+  mutate(Improvement = -DeltaDist) |> 
+  select(subjID,SpeedIndex,Improvement) |> 
+  mutate(SpeedIndex = factor(SpeedIndex))
+
+st_mn = st |> group_by(SpeedIndex) |> summarize(Improvement_mn = mean(Improvement), Improvement_sd = sd(Improvement))
+
+cohens_d_contrast_2 = st_mn$Improvement_mn[5]/st_mn$Improvement_sd[5]
+# [1] 0.8478208
+
+power_2 = power.t.test(n=80,delta=cohens_d_contrast_2)$power
+# [1] 0.9996232
+
+cohens_d_contrast_3 = (st_mn$Improvement_mn[5]-st_mn$Improvement_mn[2])/mean(st_mn$Improvement_sd[c(2,5)])
+# [1] 0.5034512
+
+power_3 = power.t.test(n=80,delta=cohens_d_contrast_3)$power
+# [1] 0.8858459
+
+```
+
+## Figures
+
+The primary multi-panel data figure is saved as `panels.eps`.
+The arguments in the following line can be changed to alter its size and resolution as needed.
+
+```
+ggsave("panels.eps",plt,dpi=300,width=6.5,height=3,units="in")
+```
+
+
+## Simple group comparison figure
+```{r}
+group.colors <- c(AB = "#000040", Stroke = "#800000")
+                  
+# plot 1
+set.seed(585)
+f0 = d_mn |> ggplot(aes(Group,Dist,color = Group)) + geom_jitter(width=0.05) +
+  geom_point(data = d_mn_2, mapping = aes(Group,Dist_mn, color = Group), shape =5, size = 6) +
+  labs(x="",y="Distance from\nAble-bodied Centroid\n(Arbitrary Units)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+ggsave("between.eps",dpi=300,width=2,height=3)
+
+f0
+```
+
+## Annotated group comparison figure
+```{r}
+f1 = d_mn_2 |> ggplot(aes(Group,Dist_mn,color = Group)) + geom_point(shape = 18, size = 6) +
+  geom_linerange(aes(ymin = Dist_mn-Dist_sd,ymax = Dist_mn+Dist_sd)) +
+  expand_limits(y=c(50,175)) +
+  theme_minimal() +
+  labs(x="Group",y="Distance from\nAble-bodied Centroid\n(Arbitrary Units)") +
+  theme(legend.position = "none") +
+  scale_color_manual(values=group.colors) +
+  annotate("text", x = 1.5, y = 175, label = "Effect Size\nStroke (N=8)\nvs. AB (N=5)\nCohen's d = 1.3", vjust = "top")
+f1
+```
+
+## Annotated speed comparison figure
+```{r}
+# plot 2
+set.seed(585)
+f2 = st_mn |> 
+  mutate(Group = "Stroke") |> 
+  ggplot(aes(SpeedIndex,Improvement_mn,color = Group)) + geom_point(shape = 18, size = 6) +
+  geom_linerange(aes(ymin = Improvement_mn-Improvement_sd,ymax = Improvement_mn+Improvement_sd)) +
+  expand_limits(y = 30) +
+  theme_minimal() +
+  labs(x="Enforced Speed",y="Improvement towards\nAble-bodied Centroid\n(Arbitrary Units)") +
+  theme(legend.position = "none") +
+  scale_color_manual(values=group.colors) +
+  annotate("text", x = 5, y = 30, label = "Effect Sizes\nSpeed 5 vs. 1: d = 0.8\nSpeed 5 vs. 2: d = 0.5", vjust = "top") +
+  annotate("text", x = 1, y = 30, label = "N=8 Stroke", vjust = "top",hjust="left")
+f2
+```
+
+## Multi-panel figure
+```{r}
+# gridExtra::grid.arrange(grobs = c(f1,f2), widths = c(1,2), nrow = 1, ncol = 2)
+# plt = gridExtra::grid.arrange(f1,f2,ncol = 2)
+plt = gridExtra::grid.arrange(f1,f2,widths=c(1.5,2))
+ggsave("panels.eps",plt,dpi=300,width=6.5,height=3,units="in")
+
+```
+
