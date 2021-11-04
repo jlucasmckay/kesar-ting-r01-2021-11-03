@@ -24,7 +24,10 @@ self-selected speed of Cohen’s d = 0.8, a paired-sample t-test will have
 increased gait speed. Further, based on observed contrasts between
 enforced speed = 5 and enforced speed = 2 of Cohen’s d = 0.5, a
 paired-sample t-test will have &gt;85% power to resolve differential
-improvements in gait quality between enforced speeds 5 and 2.
+improvements in gait quality between enforced speeds 5 and 2. Tests of
+all pairwise combinations of speeds will have &gt;80% power to resolve
+at least 5/10 pairwise contrasts between speeds after Bonferroni
+correction for multiple comparisons (n = 10, alpha = 0.005).
 
 ## Figures
 
