@@ -22,6 +22,7 @@ a sample size of N = 80 stroke survivors and N = 20 able-bodied individuals will
 between stroke and able-bodied.
 Within the stroke group, based on contrasts between gait quality measures obtained at enforced speed = 5 and self-selected speed of Cohen's d = 0.8, a paired-sample t-test will have >95% power to resolve an improvement in gait quality accompanying increased gait speed.
 Further, based on observed contrasts between enforced speed = 5 and enforced speed = 2 of Cohen's d = 0.5, a paired-sample t-test will have >85% power to resolve differential improvements in gait quality between enforced speeds 5 and 2.
+Tests of all pairwise combinations of speeds will have >80% power to resolve at least 5/10 pairwise contrasts between speeds after Bonferroni correction for multiple comparisons (n = 10, alpha = 0.005).
 
 
 ```{r}
@@ -81,14 +82,22 @@ cohens_d_contrast_3 = (st_mn$Improvement_mn[5]-st_mn$Improvement_mn[2])/mean(st_
 power_3 = power.t.test(n=80,delta=cohens_d_contrast_3)$power
 # [1] 0.8858459
 
-
 # ADDITIONAL POWER STATEMENT
 # If the main outcomes are resolved further to increase effect size, we can estimate the power to discriminate between all levels of enforced speed.
+st_mn_contrasts = st_mn |> filter(SpeedIndex != 1) |> mutate(effect_d = Improvement_mn/sd(Improvement_sd)) |> mutate(SpeedIndex = droplevels(SpeedIndex))
+
+# Calculate pairwise contrasts
+SpeedIndexComparisons = combn(st_mn_contrasts$effect_d,2)
+pairwise_effects = abs(SpeedIndexComparisons[1,]-SpeedIndexComparisons[2,])
+n_tests = length(pairwise_effects)
+
 # with contrasts between levels 2,3,4, and 5, this amounts to 5 post-hoc tests. Performing these with Bonferroni correction will yield alpha = 0.05/5 = 0.01.
 # assuming alpha of 0.01,
-power.t.test(n=80,power=0.8,sig.level=0.01)
-# delta = 0.5460926
-
+critical_effect_size = power.t.test(n=80,power=0.8,sig.level=0.05/n_tests)$delta
+# delta = 0.58
+n_positive_tests = sum(pairwise_effects>critical_effect_size)
+# [1] 5
+# (of ten)
 
 ```
 
